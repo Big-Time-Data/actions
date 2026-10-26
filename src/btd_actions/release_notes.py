@@ -80,10 +80,10 @@ class ReleaseNotes:
 
         subjects = [c.splitlines()[0] for c in commits]
         useful = [s for s in subjects if not NOISE_RE.match(s)] or subjects
-        slack = [s.removeprefix("- ") for s in useful[:5]]
+        slack = [s.removeprefix("- ") for s in useful[:5]] or [f"No changes since {cfg.previous_tag or 'the start'}"]
         if auto:
             return Notes(auto, slack, "github")
-        return Notes("### Changes\n\n" + ("\n".join(subjects) or "- (no commits)"), slack, "git")
+        return Notes("### Changes\n\n" + ("\n".join(subjects) or f"- {slack[0]}"), slack, "git")
 
     def with_ai(self, commits: list[str], auto: str) -> Notes:
         cfg = self.cfg
