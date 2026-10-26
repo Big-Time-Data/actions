@@ -1,0 +1,41 @@
+name: release
+
+# Push a vX.Y.Z tag: creates the GitHub release and moves the vX major tag.
+on:
+  push:
+    tags: ["v[0-9]+.[0-9]+.[0-9]+"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: notes
+        uses: ./release-notes
+        with:
+          tag: ${{ github.ref_name }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          product: "Big-Time-Data/actions, shared GitHub Actions for BTD repos"
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+          NOTES_FILE: ${{ steps.notes.outputs.notes_file }}
+        run: gh release create "$TAG" --title "$TAG" --notes-file "$NOTES_FILE" --verify-tag
+
+      - name: Move major tag
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          major="${TAG%%.*}"
+          git tag -f "$major" "$TAG^{commit}"
+          git push -f origin "refs/tags/$major"
+          echo "$major -> $TAG" >> "$GITHUB_STEP_SUMMARY"

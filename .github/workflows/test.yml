@@ -1,0 +1,104 @@
+name: test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -W error::ResourceWarning -m unittest discover -s tests -t . -v
+        env:
+          PYTHONPATH: src
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.7 -color
+
+  # Run the actions from this checkout on each runner OS.
+  self-test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - id: notes
+        uses: ./release-notes
+        with:
+          tag: v99.0.0
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          product: "Big-Time-Data/actions, shared GitHub Actions for BTD repos"
+          header: "## actions {tag}"
+
+      - name: Check notes
+        env:
+          NOTES_FILE: ${{ steps.notes.outputs.notes_file }}
+          SLACK: ${{ steps.notes.outputs.slack_summary }}
+          SOURCE: ${{ steps.notes.outputs.source }}
+        run: |
+          set -euo pipefail
+          test -s "$NOTES_FILE"
+          grep -q '^## actions v99.0.0' "$NOTES_FILE"
+          test -n "$SLACK"
+          echo "source=$SOURCE"
+
+      - uses: ./slack-notify
+        with:
+          title: "actions self-test"
+          message: ${{ steps.notes.outputs.slack_summary }}
+          color: ${{ job.status }}
+          dry_run: true
+
+  pr-enhance:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - uses: ./pr-enhance
+        with:
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          product: "Big-Time-Data/actions, shared GitHub Actions for BTD repos"
+          fail_on_error: true
+
+  # The reusable workflow uses the published @v1 action.
+  reusable:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/pr-enhance.yml
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      product: "Big-Time-Data/actions, shared GitHub Actions for BTD repos"
+      dry_run: true
+    secrets:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

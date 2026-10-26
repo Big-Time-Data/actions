@@ -1,0 +1,69 @@
+name: pr-enhance
+
+# Reusable workflow: checkout + the pr-enhance action, for repos that call it
+# with `uses: Big-Time-Data/actions/.github/workflows/pr-enhance.yml@v1`.
+on:
+  workflow_call:
+    inputs:
+      product:
+        description: "One line about the product, for the prompt"
+        type: string
+        default: ""
+      instructions:
+        description: "Extra rules for the model"
+        type: string
+        default: ""
+      model:
+        description: "OpenRouter model id, or a comma-separated fallback list"
+        type: string
+        default: "anthropic/claude-haiku-5.5"
+      exclude:
+        description: "More pathspec globs to leave out of the diff"
+        type: string
+        default: ""
+      skip_label:
+        description: "Do nothing when the PR has this label"
+        type: string
+        default: "no-pr-enhance"
+      environment:
+        description: "Deployment environment that holds OPENROUTER_API_KEY, if it is an environment secret"
+        type: string
+        default: ""
+      dry_run:
+        description: "Generate, but do not change the PR"
+        type: boolean
+        default: false
+    secrets:
+      OPENROUTER_API_KEY:
+        required: true
+    outputs:
+      updated:
+        description: "true when the title or body changed"
+        value: ${{ jobs.enhance.outputs.updated }}
+
+jobs:
+  enhance:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      pull-requests: write
+    outputs:
+      updated: ${{ steps.enhance.outputs.updated }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+
+      - id: enhance
+        uses: Big-Time-Data/actions/pr-enhance@v1
+        with:
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          product: ${{ inputs.product }}
+          instructions: ${{ inputs.instructions }}
+          model: ${{ inputs.model }}
+          exclude: ${{ inputs.exclude }}
+          skip_label: ${{ inputs.skip_label }}
+          dry_run: ${{ inputs.dry_run }}

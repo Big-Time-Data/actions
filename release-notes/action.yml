@@ -1,0 +1,92 @@
+name: "BTD release-notes"
+description: >-
+  Write GitHub release notes and a short Slack summary for a tag with an LLM
+  through OpenRouter. Without a key or when the call fails, it uses GitHub
+  auto notes or the git log.
+branding:
+  icon: file-text
+  color: purple
+
+inputs:
+  tag:
+    description: "Release tag (e.g. v1.2.3 or v1.2.3-beta). It does not have to exist yet."
+    required: true
+  previous_tag:
+    description: "Tag to compare with. Empty takes the highest older tag with the same prefix and channel (stable, beta, rc...)."
+    default: ""
+  target:
+    description: "Commit for the release. Empty takes the tag when it exists, else HEAD."
+    default: ""
+  openrouter_api_key:
+    description: "OpenRouter API key. Empty skips the AI step."
+    default: ""
+  github_token:
+    description: "Token for GitHub auto notes. Empty skips them."
+    default: ${{ github.token }}
+  model:
+    description: "OpenRouter model id. A comma-separated list sets fallback models in order."
+    default: "anthropic/claude-haiku-5.5"
+  product:
+    description: "One line about the product, for the prompt"
+    default: ""
+  instructions:
+    description: "Extra rules for the model, added to the prompt"
+    default: ""
+  slack_lines:
+    description: "How many Slack summary lines to ask for"
+    default: "3 to 5"
+  max_commits:
+    description: "Maximum commits in the prompt"
+    default: "150"
+  header:
+    description: "Markdown before the notes. {tag}, {version} and {previous_tag} are replaced."
+    default: ""
+  footer:
+    description: "Markdown after the notes (e.g. download steps). Same placeholders as header."
+    default: ""
+  out_dir:
+    description: "Folder for release-notes/release-notes.md and release-notes/slack-summary.txt. Empty means RUNNER_TEMP."
+    default: ""
+  fail_on_error:
+    description: "Fail the step when the AI notes are not available"
+    default: "false"
+
+outputs:
+  notes:
+    description: "Release notes markdown (header + notes + footer)"
+    value: ${{ steps.run.outputs.notes }}
+  notes_file:
+    description: "Path of the release notes markdown file"
+    value: ${{ steps.run.outputs.notes_file }}
+  slack_summary:
+    description: "Slack mrkdwn lines that start with '• '"
+    value: ${{ steps.run.outputs.slack_summary }}
+  previous_tag:
+    description: "The tag the notes compare with"
+    value: ${{ steps.run.outputs.previous_tag }}
+  source:
+    description: "ai, github or git"
+    value: ${{ steps.run.outputs.source }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.action_path }}/../src
+        INPUT_TAG: ${{ inputs.tag }}
+        INPUT_PREVIOUS_TAG: ${{ inputs.previous_tag }}
+        INPUT_TARGET: ${{ inputs.target }}
+        INPUT_OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_PRODUCT: ${{ inputs.product }}
+        INPUT_INSTRUCTIONS: ${{ inputs.instructions }}
+        INPUT_SLACK_LINES: ${{ inputs.slack_lines }}
+        INPUT_MAX_COMMITS: ${{ inputs.max_commits }}
+        INPUT_HEADER: ${{ inputs.header }}
+        INPUT_FOOTER: ${{ inputs.footer }}
+        INPUT_OUT_DIR: ${{ inputs.out_dir }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail_on_error }}
+      run: python3 -m btd_actions.release_notes

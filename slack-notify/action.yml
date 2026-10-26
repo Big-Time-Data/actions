@@ -1,0 +1,55 @@
+name: "BTD slack-notify"
+description: >-
+  Post a title and a message with a colored bar to a Slack incoming webhook.
+  An empty webhook writes a warning and sends nothing.
+branding:
+  icon: message-square
+  color: purple
+
+inputs:
+  webhook:
+    description: "Slack incoming webhook URL"
+    default: ""
+  title:
+    description: "Message title"
+    default: ""
+  message:
+    description: "Message text in Slack mrkdwn"
+    default: ""
+  message_file:
+    description: "File with the message text. It replaces 'message'."
+    default: ""
+  color:
+    description: "good, warning, danger, #rrggbb, or a job status (success, failure, cancelled, skipped)"
+    default: "good"
+  title_link:
+    description: "URL for the title"
+    default: ""
+  dry_run:
+    description: "Print the payload and send nothing"
+    default: "false"
+  fail_on_error:
+    description: "Fail the step when the post fails"
+    default: "true"
+
+outputs:
+  sent:
+    description: "true when Slack accepted the message"
+    value: ${{ steps.run.outputs.sent }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.action_path }}/../src
+        INPUT_WEBHOOK: ${{ inputs.webhook }}
+        INPUT_TITLE: ${{ inputs.title }}
+        INPUT_MESSAGE: ${{ inputs.message }}
+        INPUT_MESSAGE_FILE: ${{ inputs.message_file }}
+        INPUT_COLOR: ${{ inputs.color }}
+        INPUT_TITLE_LINK: ${{ inputs.title_link }}
+        INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail_on_error }}
+      run: python3 -m btd_actions.slack_notify

@@ -1,0 +1,81 @@
+name: "BTD pr-enhance"
+description: >-
+  Rewrite a pull request title and body from its commits and diff with an LLM
+  through OpenRouter. A good title and body stay as they are.
+branding:
+  icon: edit-3
+  color: purple
+
+inputs:
+  openrouter_api_key:
+    description: "OpenRouter API key"
+    required: true
+  github_token:
+    description: "Token with pull-requests: write"
+    default: ${{ github.token }}
+  model:
+    description: "OpenRouter model id. A comma-separated list sets fallback models in order."
+    default: "anthropic/claude-haiku-5.5"
+  product:
+    description: "One line about the product, for the prompt (e.g. 'DTS, a desktop app and CLI for dbt')"
+    default: ""
+  instructions:
+    description: "Extra rules for the model, added to the prompt"
+    default: ""
+  pr_number:
+    description: "Pull request number. Empty takes it from the pull_request event."
+    default: ""
+  exclude:
+    description: "More git pathspec globs to leave out of the diff (newline or comma separated). Lockfiles and binaries are always out."
+    default: ""
+  skip_label:
+    description: "Do nothing when the PR has this label"
+    default: "no-pr-enhance"
+  max_commits:
+    description: "Maximum commits in the prompt"
+    default: "100"
+  max_diff_chars:
+    description: "Character budget for the diff in the prompt"
+    default: "60000"
+  max_file_chars:
+    description: "Character limit for the diff of one file"
+    default: "12000"
+  dry_run:
+    description: "Generate, but do not change the PR"
+    default: "false"
+  fail_on_error:
+    description: "Fail the step when the model call fails. If false, the step writes a warning and the PR stays as it is."
+    default: "false"
+
+outputs:
+  updated:
+    description: "true when the title or body changed"
+    value: ${{ steps.run.outputs.updated }}
+  title:
+    description: "The generated title"
+    value: ${{ steps.run.outputs.title }}
+  body:
+    description: "The generated body"
+    value: ${{ steps.run.outputs.body }}
+
+runs:
+  using: composite
+  steps:
+    - id: run
+      shell: bash
+      env:
+        PYTHONPATH: ${{ github.action_path }}/../src
+        INPUT_OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_MODEL: ${{ inputs.model }}
+        INPUT_PRODUCT: ${{ inputs.product }}
+        INPUT_INSTRUCTIONS: ${{ inputs.instructions }}
+        INPUT_PR_NUMBER: ${{ inputs.pr_number }}
+        INPUT_EXCLUDE: ${{ inputs.exclude }}
+        INPUT_SKIP_LABEL: ${{ inputs.skip_label }}
+        INPUT_MAX_COMMITS: ${{ inputs.max_commits }}
+        INPUT_MAX_DIFF_CHARS: ${{ inputs.max_diff_chars }}
+        INPUT_MAX_FILE_CHARS: ${{ inputs.max_file_chars }}
+        INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail_on_error }}
+      run: python3 -m btd_actions.pr_enhance
