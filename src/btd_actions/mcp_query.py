@@ -107,6 +107,20 @@ def install(rt: Runtime) -> Path:
     return target
 
 
+def conn_file(conn: str, tmp: Path) -> str:
+    """Return conn when it is a file path, else write the content to a 0600 file in tmp."""
+    try:
+        if "\n" not in conn and Path(conn).is_file():
+            return conn
+    except OSError:  # content that is too long for a file name
+        pass
+    path = tmp / "mcpq-conn.yaml"
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(conn + "\n")
+    return str(path)
+
+
 def setup(rt: Runtime) -> None:
     conn = rt.input("conn") or rt.env.get("MCPQ_CONN", "").strip()
     if not conn:
@@ -114,12 +128,7 @@ def setup(rt: Runtime) -> None:
 
     install(rt)
 
-    if not Path(conn).is_file():
-        path = Path(rt.env.get("RUNNER_TEMP", ".")) / "mcpq-conn.yaml"
-        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as fh:
-            fh.write(conn + "\n")
-        conn = str(path)
+    conn = conn_file(conn, Path(rt.env.get("RUNNER_TEMP", ".")))
 
     cwd = Path.cwd()
     config = resolve_config(rt.input("config"), cwd)

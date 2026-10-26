@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from btd_actions.installer import ReleaseInstaller
-from btd_actions.mcp_query import needs_uv, resolve_config
+from btd_actions.mcp_query import conn_file, needs_uv, resolve_config
 from btd_actions.runtime import ActionError
 
 
@@ -90,3 +90,14 @@ class ConfigTest(unittest.TestCase):
             cfg.write_text("sources:\n  curated: {}\n")
             self.assertFalse(needs_uv(cfg, []))
             self.assertFalse(needs_uv(Path(d) / "missing.yaml", []))
+
+    def test_conn_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            existing = tmp / "conn.yaml"
+            existing.write_text("x")
+            self.assertEqual(conn_file(str(existing), tmp), str(existing))
+            for content in ("a" * 5000, "type: postgres\nurl: " + "b" * 5000, "type: postgres\nhost: h"):
+                path = Path(conn_file(content, tmp))
+                self.assertEqual(path.read_text(), content + "\n")
+                self.assertEqual(path.stat().st_mode & 0o777, 0o600)
