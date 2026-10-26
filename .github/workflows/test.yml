@@ -98,7 +98,8 @@ jobs:
       PGUSER: mcpq
       PGPASSWORD: mcpq
       PGDATABASE: shop
-      MCPQ_CONN: |
+      # Only the action steps get it as MCPQ_CONN: mcpq init reads MCPQ_CONN as a path.
+      TEST_CONN: |
         type: postgres
         host: localhost
         port: 5432
@@ -133,6 +134,8 @@ jobs:
           working_directory: shop
           source: curated, catalog
           publish: false
+        env:
+          MCPQ_CONN: ${{ env.TEST_CONN }}
       - name: Check that preview did not publish
         run: test "$(psql -tAc 'SELECT count(*) FROM mcpq.tables')" -eq 0
       - id: publish
@@ -141,6 +144,8 @@ jobs:
           version: ${{ matrix.version }}
           working_directory: shop
           source: curated, catalog
+        env:
+          MCPQ_CONN: ${{ env.TEST_CONN }}
       - name: Check the published tables
         env:
           ARTIFACT: ${{ steps.publish.outputs.artifact }}
