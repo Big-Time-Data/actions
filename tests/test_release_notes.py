@@ -23,6 +23,13 @@ class ReleaseNotesTest(unittest.TestCase):
         self.assertEqual(notes.slack, ["feat: add x (b2)"])
         git.commits.assert_called_once_with("v1.1.0..abc", 10, body=True)
 
+    def test_no_commits(self):
+        llm = mock.Mock()
+        notes = ReleaseNotes(cfg(), self.git([]), None, llm).generate()
+        llm.complete_json.assert_not_called()
+        self.assertEqual((notes.source, notes.slack), ("git", ["No changes since v1.1.0"]))
+        self.assertIn("No changes since v1.1.0", notes.body)
+
     def test_ai_strips_bullets(self):
         llm = mock.Mock()
         llm.complete_json.return_value = {"github_notes": "### Features\n- x", "slack_summary": ["• *x* added", "- y", ""]}

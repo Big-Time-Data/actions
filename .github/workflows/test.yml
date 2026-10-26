@@ -73,6 +73,102 @@ jobs:
           color: ${{ job.status }}
           dry_run: true
 
+  # mcp-query against Postgres, with the starter tree of mcpq init and one
+  # table for the catalog source. MCPQ_CONN holds the file content, as a
+  # secret does.
+  mcp-query:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [latest, v0]
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: mcpq
+          POSTGRES_PASSWORD: mcpq
+          POSTGRES_DB: shop
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U mcpq -d shop"
+          --health-interval 2s --health-timeout 2s --health-retries 30
+    env:
+      PGHOST: localhost
+      PGUSER: mcpq
+      PGPASSWORD: mcpq
+      PGDATABASE: shop
+      # Only the action steps get it as MCPQ_CONN: mcpq init reads MCPQ_CONN as a path.
+      TEST_CONN: |
+        type: postgres
+        host: localhost
+        port: 5432
+        user: mcpq
+        password: mcpq
+        database: shop
+        sslmode: disable
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install mcpq for init
+        env:
+          PYTHONPATH: src
+          INPUT_VERSION: ${{ matrix.version }}
+          INPUT_GITHUB_TOKEN: ${{ github.token }}
+        run: python3 -m btd_actions.mcp_query install
+      - name: Make the starter tree and the context schema
+        run: |
+          set -euo pipefail
+          mkdir shop && cd shop && git init -q
+          mcpq init --yes --no-ci --warehouse postgres --schema mcpq --org "Test Shop"
+          perl -0pi -e 's/  # catalog_scope:\n  #   databases: \[ANALYTICS\]\n  #   include_schemas: \[MARTS\]/  catalog_scope:\n    databases: [shop]\n    include_schemas: [shop]/; s/  # catalog:\n  #   profile: false/  catalog:\n    profile: false/' mcpq/mcpq.yaml
+          grep -q '^  catalog:' mcpq/mcpq.yaml
+          psql -v ON_ERROR_STOP=1 -qc "CREATE SCHEMA shop; CREATE TABLE shop.orders (id int PRIMARY KEY, amount numeric); INSERT INTO shop.orders VALUES (1, 10);"
+          for f in 01-schema.sql 03-log-procedure.sql; do
+            psql -v ON_ERROR_STOP=1 -q -f "mcpq/sql/$f"
+          done
+      - name: Preview (no publish)
+        id: preview
+        uses: ./mcp-query
+        with:
+          version: ${{ matrix.version }}
+          working_directory: shop
+          source: curated, catalog
+          publish: false
+        env:
+          MCPQ_CONN: ${{ env.TEST_CONN }}
+      - name: Check that preview did not publish
+        run: test "$(psql -tAc 'SELECT count(*) FROM mcpq.tables')" -eq 0
+      - id: publish
+        uses: ./mcp-query
+        with:
+          version: ${{ matrix.version }}
+          working_directory: shop
+          source: curated, catalog
+        env:
+          MCPQ_CONN: ${{ env.TEST_CONN }}
+      - name: Check the published tables
+        env:
+          ARTIFACT: ${{ steps.publish.outputs.artifact }}
+          VERSION: ${{ steps.publish.outputs.version }}
+        run: |
+          set -euo pipefail
+          echo "version=$VERSION artifact=$ARTIFACT"
+          test -n "$ARTIFACT"
+          test "$(psql -tAc 'SELECT count(*) FROM mcpq.tables')" -ge 1
+
+  mcp-query-no-conn:
+    # The action stops before it builds when MCPQ_CONN is not set.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - id: run
+        uses: ./mcp-query
+        continue-on-error: true
+      - name: Check that the action failed
+        env:
+          OUTCOME: ${{ steps.run.outcome }}
+        run: test "$OUTCOME" = failure
+
   pr-enhance:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest

@@ -21,7 +21,7 @@ inputs:
     description: "OpenRouter API key. Empty skips the AI step."
     default: ""
   github_token:
-    description: "Token for GitHub auto notes. Empty skips them."
+    description: "Token for GitHub auto notes; needs contents: write. Empty skips them."
     default: ${{ github.token }}
   model:
     description: "OpenRouter model id. A comma-separated list sets fallback models in order."

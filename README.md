@@ -7,6 +7,7 @@ Shared GitHub Actions for Big-Time-Data repositories.
 | [`pr-enhance`](pr-enhance/action.yml) | Rewrites a pull request title and body from its commits and diff. A good title and body stay as they are. |
 | [`release-notes`](release-notes/action.yml) | Writes GitHub release notes and a short Slack summary for a tag. |
 | [`slack-notify`](slack-notify/action.yml) | Posts a title and a message with a colored bar to a Slack incoming webhook. |
+| [`mcp-query`](mcp-query/action.yml) | Installs `mcpq`, builds the MCPQ context, posts the diff, then publishes, validates and runs the evals. |
 
 The LLM calls go through [OpenRouter](https://openrouter.ai). The default model is `anthropic/claude-haiku-5.5`.
 
@@ -113,7 +114,7 @@ The notes come from the model when it is available. If not, they come from the G
 | `previous_tag` | auto | Tag to compare with. |
 | `target` | the tag, else `HEAD` | Commit for the release. |
 | `openrouter_api_key` | | Empty skips the AI step. |
-| `github_token` | `github.token` | Used for GitHub auto notes. |
+| `github_token` | `github.token` | Used for GitHub auto notes. The auto notes need `contents: write`; without it the action uses the git log. |
 | `model`, `product`, `instructions` | | Same as `pr-enhance`. |
 | `slack_lines` | `3 to 5` | How many Slack lines to ask for. |
 | `header` / `footer` | | Markdown before and after the notes. `{tag}`, `{version}` and `{previous_tag}` are replaced. |
@@ -149,6 +150,52 @@ Outputs: `notes`, `notes_file`, `slack_summary` (lines that start with `• `), 
 
 Output: `sent`.
 
+## mcp-query
+
+This action replaces [Big-Time-Data/mcp-query-action](https://github.com/Big-Time-Data/mcp-query-action). It runs the same steps as `mcpq build --publish` on a laptop:
+
+1. Install the `mcpq` release and check its checksum.
+2. Write the `MCPQ_CONN` secret to a file (mode 0600).
+3. Install uv when the dbt source runs and `mcpq.yaml` has `dbt_core`.
+4. Build the sources.
+5. Post the diff to the step summary.
+6. Publish, then run `mcpq validate --stage published`.
+7. Run the evals when `eval_tags` is set and `MCPQ_EVAL` holds a key.
+
+```yaml
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Big-Time-Data/actions/mcp-query@v1
+        with:
+          version: v0.0.17
+          source: dbt,curated,catalog
+          config: mcpq/mcpq.yaml
+        env:
+          MCPQ_CONN: ${{ secrets.MCPQ_CONN }}
+          MCPQ_EVAL: ${{ secrets.MCPQ_EVAL }}
+```
+
+Set `publish: false` on pull requests to build and see the diff without a publish.
+
+The `@v1` ref selects the version of this repo, not the `mcpq` release. The `version` input selects the `mcpq` release. Pin it to `vX.Y.Z` for builds that you can repeat.
+
+| Input | Default | Description |
+| --- | --- | --- |
+| `source` | all enabled | Comma-separated source names. |
+| `config` | `./mcpq.yaml`, else `./mcpq/mcpq.yaml` | Path to `mcpq.yaml`, from `working_directory`. |
+| `working_directory` | `.` | Folder to run `mcpq` in. |
+| `version` | `v0` | `latest`, `vX.Y.Z`, or a major such as `v0` (the newest stable `v0` release). |
+| `conn` | env `MCPQ_CONN` | Conn file content or a path to it. The action fails when both are empty. |
+| `publish` | `true` | If false, only build and post the diff. |
+| `eval_tags` | | Eval tags to run after publish. Empty skips the evals. |
+| `eval_api_key` | env `MCPQ_EVAL` | API key of the eval harness. |
+| `github_token` | `github.token` | Token for the GitHub API calls that find the release. |
+| `bin` | | Path to an `mcpq` binary to use instead of a release (for tests). |
+
+Outputs: `version`, `artifact`, `diff_file`.
+
+The releases come from [Big-Time-Data/homebrew-tools](https://github.com/Big-Time-Data/homebrew-tools/releases).
+
 ## Versions
 
 - Each release has an immutable tag `vX.Y.Z`.
@@ -166,6 +213,7 @@ src/btd_actions/      shared Python core; one module per action entry point
   openrouter.py       chat completions with JSON schema output
   github.py, git.py   GitHub API and local git
   diff.py, version.py diff budget, semantic version tags
+  installer.py        install a CLI from a GitHub release, check checksums.txt
 <action>/action.yml   composite action: maps inputs to INPUT_* and runs python3 -m btd_actions.<module>
 tests/                unittest
 ```
@@ -185,6 +233,6 @@ PYTHONPATH=../actions/src GITHUB_REPOSITORY=Big-Time-Data/some-repo \
   INPUT_PR_NUMBER=39 INPUT_DRY_RUN=true python3 -m btd_actions.pr_enhance
 ```
 
-The `test` workflow runs the unit tests, actionlint, and the actions from the checkout on Linux and macOS. On pull requests, it also runs `pr-enhance` on the PR.
+The `test` workflow runs the unit tests, actionlint, and the actions from the checkout on Linux and macOS. It runs `mcp-query` against a Postgres service. On pull requests, it also runs `pr-enhance` on the PR.
 
 To add an action, add a module in `src/btd_actions/`, a folder with an `action.yml`, tests, and a section in this README.

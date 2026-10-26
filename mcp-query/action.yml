@@ -1,0 +1,89 @@
+name: "BTD mcp-query"
+description: >-
+  Install mcpq, build the MCPQ context, post the diff to the step summary,
+  then publish it to the warehouse, validate it and run the evals.
+branding:
+  icon: database
+  color: purple
+
+inputs:
+  source:
+    description: "Comma-separated source names. Empty builds every enabled source."
+    default: ""
+  config:
+    description: "Path to mcpq.yaml, from working_directory. Empty means ./mcpq.yaml, else ./mcpq/mcpq.yaml."
+    default: ""
+  working_directory:
+    description: "Folder to run mcpq in, from the repo root"
+    default: "."
+  version:
+    description: "mcpq release: latest, vX.Y.Z, or a major such as v0 (the newest v0 release)"
+    default: "v0"
+  conn:
+    description: "Conn file content or path. Empty uses the MCPQ_CONN env."
+    default: ""
+  publish:
+    description: "Publish, validate and run evals. If false, the action only builds and posts the diff (for PR previews)."
+    default: "true"
+  eval_tags:
+    description: "Eval tags to run after publish. Empty skips the evals."
+    default: ""
+  eval_api_key:
+    description: "API key of the eval harness. Empty uses the MCPQ_EVAL env."
+    default: ""
+  github_token:
+    description: "Token for the GitHub API calls that find the mcpq release"
+    default: ${{ github.token }}
+  bin:
+    description: "Path to an mcpq binary to use instead of a release (for tests)"
+    default: ""
+
+outputs:
+  version:
+    description: "Output of mcpq version"
+    value: ${{ steps.setup.outputs.version }}
+  artifact:
+    description: "Path of the build artifact"
+    value: ${{ steps.run.outputs.artifact }}
+  diff_file:
+    description: "Path of the diff markdown, when mcpq diff ran"
+    value: ${{ steps.run.outputs.diff_file }}
+
+runs:
+  using: composite
+  steps:
+    - id: setup
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        PYTHONPATH: ${{ github.action_path }}/../src
+        INPUT_SOURCE: ${{ inputs.source }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_CONN: ${{ inputs.conn }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
+        INPUT_BIN: ${{ inputs.bin }}
+      run: python3 -m btd_actions.mcp_query setup
+
+    - name: Install uv
+      if: steps.setup.outputs.need_uv == 'true'
+      uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+      with:
+        version: "0.13.1" # mcpq tools.UVVersion
+        enable-cache: true
+        cache-dependency-glob: ""
+        ignore-nothing-to-cache: true
+
+    - id: run
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      env:
+        PYTHONPATH: ${{ github.action_path }}/../src
+        INPUT_BIN: ${{ steps.setup.outputs.bin }}
+        INPUT_CONFIG: ${{ steps.setup.outputs.config }}
+        INPUT_CONN: ${{ steps.setup.outputs.conn }}
+        INPUT_SOURCE: ${{ inputs.source }}
+        INPUT_PUBLISH: ${{ inputs.publish }}
+        INPUT_EVAL_TAGS: ${{ inputs.eval_tags }}
+        INPUT_EVAL_API_KEY: ${{ inputs.eval_api_key }}
+      run: python3 -m btd_actions.mcp_query run
