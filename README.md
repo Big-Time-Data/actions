@@ -13,7 +13,7 @@ The LLM calls go through [OpenRouter](https://openrouter.ai). The default model 
 
 ## Requirements
 
-- A runner with `python3` 3.10 or later and `git`. The `ubuntu-latest` and `macos-latest` runners have both.
+- A runner with `python3` 3.9 or later and `git`. GitHub runners have both, and so does the stock macOS `python3`.
 - The secret `OPENROUTER_API_KEY` for `pr-enhance`. For `release-notes` the key is optional.
 - `actions/checkout` with `fetch-depth: 0` before `pr-enhance` and `release-notes`.
 
