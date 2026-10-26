@@ -27,5 +27,16 @@ class VersionTest(unittest.TestCase):
     def test_previous_same_prefix(self):
         self.assertEqual(Version.parse("app/v10.0.0").previous(TAGS), "app/v9.9.9")
 
+    def test_prerelease_since_any(self):
+        tags = ["v0.1.4", "v0.1.5-beta.1", "v0.1.9", "v0.1.10-beta.3"]
+        self.assertEqual(Version.parse("v0.1.5-beta.2").previous(tags, "any"), "v0.1.5-beta.1")
+        self.assertEqual(Version.parse("v0.2.0-beta.1").previous(tags, "any"), "v0.1.10-beta.3")
+        self.assertEqual(Version.parse("v0.1.10-beta.4").previous(tags, "any"), "v0.1.10-beta.3")
+        # A stable tag still compares with stable tags only.
+        self.assertEqual(Version.parse("v0.1.10").previous(tags, "any"), "v0.1.9")
+
+    def test_stable_sorts_after_its_prereleases(self):
+        self.assertLess(Version.parse("v1.0.0-beta.9").key, Version.parse("v1.0.0").key)
+
     def test_no_previous(self):
         self.assertEqual(Version.parse("v0.0.1").previous(TAGS), "")

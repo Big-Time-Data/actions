@@ -59,10 +59,11 @@ class Git:
         except ActionError:
             return ""
 
-    def commits(self, rev_range: str, limit: int, body: bool = False) -> list[str]:
+    def commits(self, rev_range: str, limit: int, body: bool = False, paths: list[str] | None = None) -> list[str]:
         """One entry per commit: '- subject (sha)', plus the body when body is true."""
         fmt = "%x1e- %s (%h)%n%b" if body else "%x1e- %s (%h)"
-        out = self.run("log", rev_range, "--no-merges", f"--max-count={limit}", f"--pretty=format:{fmt}")
+        pathspec = ["--", *paths] if paths else []
+        out = self.run("log", rev_range, "--no-merges", f"--max-count={limit}", f"--pretty=format:{fmt}", *pathspec)
         return [entry.strip() for entry in out.split("\x1e") if entry.strip()]
 
     def stat(self, rev_range: str, max_lines: int) -> str:

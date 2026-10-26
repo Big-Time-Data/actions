@@ -14,6 +14,12 @@ inputs:
   previous_tag:
     description: "Tag to compare with. Empty takes the highest older tag with the same prefix and channel (stable, beta, rc...)."
     default: ""
+  prerelease_since:
+    description: "channel: a prerelease compares with the last tag of its channel (v1.3.0-beta with v1.2.9-beta). any: with the newest older tag of any channel."
+    default: "channel"
+  paths:
+    description: "Git pathspecs from the repo root that limit the commits, for one app in a monorepo (newline or comma separated). With paths, GitHub auto notes are skipped."
+    default: ""
   target:
     description: "Commit for the release. Empty takes the tag when it exists, else HEAD."
     default: ""
@@ -77,6 +83,8 @@ runs:
         PYTHONPATH: ${{ github.action_path }}/../src
         INPUT_TAG: ${{ inputs.tag }}
         INPUT_PREVIOUS_TAG: ${{ inputs.previous_tag }}
+        INPUT_PRERELEASE_SINCE: ${{ inputs.prerelease_since }}
+        INPUT_PATHS: ${{ inputs.paths }}
         INPUT_TARGET: ${{ inputs.target }}
         INPUT_OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
         INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}

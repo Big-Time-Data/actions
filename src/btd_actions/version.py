@@ -33,20 +33,25 @@ class Version:
         return label or "stable"
 
     @property
-    def key(self) -> tuple[int, int, int, int]:
+    def key(self) -> tuple[int, int, int, int, int]:
+        """Sort key: a prerelease comes before the stable release of the same number."""
         digits = re.findall(r"\d+", self.pre)
-        return (self.major, self.minor, self.patch, int(digits[-1]) if digits else 0)
+        return (self.major, self.minor, self.patch, 0 if self.pre else 1, int(digits[-1]) if digits else 0)
 
     @property
     def number(self) -> str:
         """The version without the prefix, e.g. 1.2.3-beta."""
         return self.tag[len(self.prefix) :]
 
-    def previous(self, tags: list[str]) -> str:
-        """The highest older tag with the same prefix and channel, or ''."""
+    def previous(self, tags: list[str], prerelease_since: str = "channel") -> str:
+        """The highest older tag with the same prefix and channel, or ''.
+
+        prerelease_since="any": a prerelease compares with the highest older tag of any channel.
+        """
+        any_channel = prerelease_since == "any" and self.pre
         older = [
             v
             for v in (Version.parse(t) for t in tags)
-            if v and v.prefix == self.prefix and v.channel == self.channel and v.key < self.key
+            if v and v.prefix == self.prefix and (any_channel or v.channel == self.channel) and v.key < self.key
         ]
         return max(older, key=lambda v: v.key).tag if older else ""

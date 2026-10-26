@@ -6,7 +6,7 @@ from btd_actions.release_notes import Config, ReleaseNotes
 
 def cfg(**kw):
     base = dict(tag="v1.2.0", previous_tag="v1.1.0", target="abc", product="", instructions="",
-                slack_lines="3 to 5", max_commits=10, header="", footer="")
+                slack_lines="3 to 5", max_commits=10, paths=[], header="", footer="")
     return Config(**{**base, **kw})
 
 
@@ -21,7 +21,15 @@ class ReleaseNotesTest(unittest.TestCase):
         notes = ReleaseNotes(cfg(), git, None, None).generate()
         self.assertEqual(notes.source, "git")
         self.assertEqual(notes.slack, ["feat: add x (b2)"])
-        git.commits.assert_called_once_with("v1.1.0..abc", 10, body=True)
+        git.commits.assert_called_once_with("v1.1.0..abc", 10, body=True, paths=[])
+
+    def test_paths_skip_auto_notes(self):
+        github = mock.Mock()
+        git = self.git(["- feat: app change (a1)"])
+        notes = ReleaseNotes(cfg(paths=["big-timer"]), git, github, None).generate()
+        github.generate_notes.assert_not_called()
+        git.commits.assert_called_once_with("v1.1.0..abc", 10, body=True, paths=["big-timer"])
+        self.assertEqual(notes.source, "git")
 
     def test_no_commits(self):
         llm = mock.Mock()

@@ -112,6 +112,8 @@ The notes come from the model when it is available. If not, they come from the G
 | --- | --- | --- |
 | `tag` | (required) | Release tag. It does not have to exist yet. |
 | `previous_tag` | auto | Tag to compare with. |
+| `prerelease_since` | `channel` | `channel`: a prerelease compares with the last tag of its channel. `any`: with the newest older tag of any channel. A stable tag always compares with the last stable tag. |
+| `paths` | | Git pathspecs from the repo root that limit the commits, for one app in a monorepo. With `paths`, the GitHub auto notes are skipped. |
 | `target` | the tag, else `HEAD` | Commit for the release. |
 | `openrouter_api_key` | | Empty skips the AI step. |
 | `github_token` | `github.token` | Used for GitHub auto notes. The auto notes need `contents: write`; without it the action uses the git log. |

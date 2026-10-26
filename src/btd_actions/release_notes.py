@@ -48,6 +48,7 @@ class Config:
     instructions: str
     slack_lines: str
     max_commits: int
+    paths: list[str]
     header: str
     footer: str
 
@@ -69,8 +70,9 @@ class ReleaseNotes:
     def generate(self) -> Notes:
         cfg = self.cfg
         rev_range = f"{cfg.previous_tag}..{cfg.target}" if cfg.previous_tag else cfg.target
-        commits = self.git.commits(rev_range, cfg.max_commits, body=True)
-        auto = self.github.generate_notes(cfg.tag, cfg.previous_tag, cfg.target) if self.github else ""
+        commits = self.git.commits(rev_range, cfg.max_commits, body=True, paths=cfg.paths)
+        # GitHub auto notes cover the whole repo, so they do not fit a path filter.
+        auto = self.github.generate_notes(cfg.tag, cfg.previous_tag, cfg.target) if self.github and not cfg.paths else ""
 
         if self.llm and (commits or auto):
             try:
@@ -128,10 +130,13 @@ def main(rt: Runtime) -> None:
     target = rt.input("target") or (tag if git.has_commit(tag) else "HEAD")
     target = git.rev(target)
 
+    since = rt.input("prerelease_since", "channel")
+    if since not in ("channel", "any"):
+        raise ActionError(f"input 'prerelease_since' must be channel or any, got '{since}'")
     previous = rt.input("previous_tag")
     if not previous:
         v = Version.parse(tag)
-        previous = v.previous(git.tags()) if v else ""
+        previous = v.previous(git.tags(), since) if v else ""
         if not v:
             rt.warning(f"release-notes: tag '{tag}' is not a semantic version; notes cover all history")
     if previous and not git.has_commit(previous):
@@ -145,6 +150,7 @@ def main(rt: Runtime) -> None:
         instructions=rt.input("instructions"),
         slack_lines=rt.input("slack_lines", "3 to 5"),
         max_commits=rt.int_input("max_commits", 150),
+        paths=rt.list_input("paths"),
         header=rt.input("header"),
         footer=rt.input("footer"),
     )
