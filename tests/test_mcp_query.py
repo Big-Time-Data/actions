@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from btd_actions.installer import ReleaseInstaller
-from btd_actions.mcp_query import conn_file, diff_summary, needs_uv, resolve_config
+from btd_actions.mcp_query import Mcpq, conn_file, diff_summary, needs_uv, resolve_config
 from btd_actions.runtime import ActionError
 
 
@@ -101,6 +101,15 @@ class ConfigTest(unittest.TestCase):
                 path = Path(conn_file(content, tmp))
                 self.assertEqual(path.read_text(), content + "\n")
                 self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+
+class DiffTest(unittest.TestCase):
+    def test_diff_args(self):
+        for config, want in (("", ["mcpq"]), ("c.yaml", ["mcpq", "--config", "c.yaml"])):
+            with mock.patch("btd_actions.mcp_query.subprocess.run") as run:
+                run.return_value = mock.Mock(returncode=0, stdout="md", stderr="")
+                self.assertEqual(Mcpq(bin="mcpq", config=config, conn="x").diff("a"), "md")
+                self.assertEqual(run.call_args.args[0], [*want, "diff", "current", "a", "--format", "md"])
 
 
 class DiffSummaryTest(unittest.TestCase):

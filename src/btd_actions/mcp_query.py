@@ -74,7 +74,7 @@ class Mcpq:
         return artifact
 
     def diff(self, artifact: str) -> str:
-        out = subprocess.run(self.args("diff", artifact, "current", "--format", "md"), env=self.env(), capture_output=True, text=True)
+        out = subprocess.run(self.args("diff", "current", artifact, "--format", "md"), env=self.env(), capture_output=True, text=True)
         if out.returncode != 0:
             raise ActionError(f"mcpq diff failed: {out.stderr.strip()[-500:]}")
         return out.stdout
@@ -156,7 +156,7 @@ def run(rt: Runtime) -> None:
         artifact = mcpq.build(rt.list_input("source"))
     rt.set_output("artifact", artifact)
 
-    # The diff runs before publish, so it shows what this build changes.
+    # The diff runs before publish, so it shows what this build changes: "+" is what it adds.
     with group("mcpq diff"):
         try:
             diff = mcpq.diff(artifact)
