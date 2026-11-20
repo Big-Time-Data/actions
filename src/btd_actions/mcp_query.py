@@ -19,6 +19,18 @@ from .runtime import ActionError, Runtime
 
 RELEASE_REPO = "Big-Time-Data/homebrew-tools"
 DEFAULT_CONFIGS = ("mcpq.yaml", "mcpq/mcpq.yaml")  # mcpq's own search order
+SUMMARY_LIMIT = 900 * 1024  # GitHub rejects a step summary over 1024 KB and cancels the step
+
+
+def diff_summary(diff: str, limit: int = SUMMARY_LIMIT) -> str:
+    """Return the step summary of the diff, cut at a line end to fit in limit bytes."""
+    summary = f"## mcpq diff\n\n{diff}"
+    data = summary.encode("utf-8")
+    if len(data) <= limit:
+        return summary
+    note = f"\n\n_Truncated: the diff is {len(data) // 1024} KB. The step summary shows the first {limit // 1024} KB._\n"
+    head = data[: limit - len(note.encode("utf-8"))].decode("utf-8", errors="ignore")
+    return head[: head.rfind("\n") + 1].rstrip() + note
 
 
 @contextmanager
@@ -155,7 +167,7 @@ def run(rt: Runtime) -> None:
         diff_file = Path(rt.env.get("RUNNER_TEMP", ".")) / "mcpq-diff.md"
         diff_file.write_text(diff, encoding="utf-8")
         rt.set_output("diff_file", str(diff_file))
-        rt.summary(f"## mcpq diff\n\n{diff}")
+        rt.summary(diff_summary(diff))
 
     if not rt.bool_input("publish", default=True):
         print("publish is false: build and diff only")
