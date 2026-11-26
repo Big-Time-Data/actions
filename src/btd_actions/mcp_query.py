@@ -74,7 +74,14 @@ class Mcpq:
         return artifact
 
     def diff(self, artifact: str) -> str:
-        out = subprocess.run(self.args("diff", "current", artifact, "--format", "md"), env=self.env(), capture_output=True, text=True)
+        # mcpq can cut a value mid-character, so replace invalid UTF-8 rather than fail the job.
+        out = subprocess.run(
+            self.args("diff", "current", artifact, "--format", "md"),
+            env=self.env(),
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        )
         if out.returncode != 0:
             raise ActionError(f"mcpq diff failed: {out.stderr.strip()[-500:]}")
         return out.stdout
