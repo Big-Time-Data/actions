@@ -111,6 +111,14 @@ class DiffTest(unittest.TestCase):
                 self.assertEqual(Mcpq(bin="mcpq", config=config, conn="x").diff("a"), "md")
                 self.assertEqual(run.call_args.args[0], [*want, "diff", "current", "a", "--format", "md"])
 
+    def test_diff_invalid_utf8(self):
+        # A value cut inside "→" (e2 86 92) leaves e2 86 before the ellipsis.
+        with tempfile.TemporaryDirectory() as d:
+            exe = Path(d) / "mcpq"
+            exe.write_text("#!/bin/sh\nprintf 'a \\342\\206... b'\n")
+            exe.chmod(0o755)
+            self.assertEqual(Mcpq(bin=str(exe), config="", conn="x").diff("a"), "a \ufffd... b")
+
 
 class DiffSummaryTest(unittest.TestCase):
     def test_small_diff_is_whole(self):
